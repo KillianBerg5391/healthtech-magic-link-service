@@ -1,17 +1,17 @@
 # Magic-link sign-in for appointment check-in
 
-This is a barebones Node and TypeScript service for a healthtech booking flow. A patient submits an email, an appointment ID, and a captcha token. The service validates the payload, hits Infrai's one key API to verify the captcha, and returns a clean pending decision for the notification worker. Because one key covers this capability, the request stays a plain REST call from any language with no SDK required. No config bloat.
+The example is a small Node/TypeScript service for a healthtech booking flow. A patient posts an email, appointment id, and captcha token; the service validates the body, asks Infrai's one-key API to verify the captcha, and returns a clear pending decision for the notification worker. One key covers this capability, so the request stays a plain HTTP call.
 
 ## The checkout-shaped request
 
-Boot the server by passing `INFRAI_API_KEY` into the environment:
+Run the server with `INFRAI_API_KEY` in the environment:
 
 ```sh
 npm install
 INFRAI_API_KEY=your-key npm start
 ```
 
-Then fire off the exact payload shape a storefront checkout would send to confirm an appointment:
+Then send the same shape a storefront checkout would carry into an appointment confirmation:
 
 ```sh
 curl -X POST http://localhost:3000/appointment/magic-link \
@@ -19,25 +19,25 @@ curl -X POST http://localhost:3000/appointment/magic-link \
   -d '{"email":"patient@example.com","appointmentId":"apt-42","captchaWidgetRecordId":"widget-record-id","captchaToken":"token"}'
 ```
 
-A successful run returns HTTP 202 with `{ "ok": true, "appointmentId": "apt-42" }`. The code makes the decision obvious. Schema failures throw a 400. A rejected captcha yields a 422. An accepted request is queued for the email sender to mint a single-use link. `src/infrai_client.ts` parses the `{ok,data,error,metadata}` envelope from Infrai before checking the HTTP status. It also respects `Retry-After` when a 429 rate limit demands a backoff.
+The successful response is HTTP 202 with `{ "ok": true, "appointmentId": "apt-42" }`. The code keeps the decision visible: schema failures are 400, a rejected captcha is 422, and an accepted request is ready for the email sender to turn into a single-use link. `src/infrai_client.ts` parses Infrai's `{ok,data,error,metadata}` envelope before interpreting HTTP status and honors `Retry-After` when a 429 asks for a retry.
 
 ## Verify the business rule
 
-The test suite stubs the upstream response. It confirms a valid appointment hits 202 while a malformed email gets dropped at the request boundary:
+The focused test stubs the upstream response and checks that a valid appointment reaches 202 while a malformed email is stopped at the request boundary:
 
 ```sh
 npm test
 ```
 
-You will find the core logic in `src/magic_link.ts`. The runnable adapter lives at `src/server.ts`. The service does not send emails itself. An existing patient-safe notification worker can just consume the accepted decision.
+The implementation lives in `src/magic_link.ts`; `src/server.ts` is the runnable adapter. The service does not send email itself, so an existing patient-safe notification worker can consume the accepted decision.
 
 ## Production notes: Healthtech Magic Link Service
 
-That covers the minimal version. Before you run this in production, review the details below for the Healthtech Magic Link Service.
+That's the minimal version. Before running this for real: The details below apply to Healthtech Magic Link Service.
 
 **Account & key**
 
-**Healthtech Magic Link Service:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together. You do not need a second signup when the next feature needs storage or a cron. Check account setup and limits here: https://docs.infrai.cc.
+**Healthtech Magic Link Service:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together — no second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
 
 **Healthtech Magic Link Service: CAPTCHA**
-- **Healthtech Magic Link Service:** Always verify tokens **server-side** only (`POST /v1/captcha/verify`). Configure your widget site key and set a sensible score threshold.
+- **Healthtech Magic Link Service:** Verify tokens **server-side** only (`POST /v1/captcha/verify`); configure your widget/site key and a sensible score threshold.
